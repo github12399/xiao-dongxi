@@ -46,18 +46,22 @@ call({
     "messages": [{"role": "user", "content": "你是谁呀？"}],
 }, "文本")
 
-# 2) 视觉
-with open("shots/01_baby.png", "rb") as f:
-    b64 = base64.b64encode(f.read()).decode()
-call({
-    "model": MODEL,
-    "max_tokens": 1024,
-    "thinking": {"type": "disabled"},
-    "messages": [{
-        "role": "user",
-        "content": [
-            {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": b64}},
-            {"type": "text", "text": "这张图里你看到了什么？用一句话描述。"},
-        ],
-    }],
-}, "视觉")
+# 2) 视觉（需要一个本地参考图，没有就跳过）
+_IMG = "shots/01_baby.png"
+if os.path.isfile(_IMG):
+    with open(_IMG, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+    call({
+        "model": MODEL,
+        "max_tokens": 1024,
+        "thinking": {"type": "disabled"},
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": b64}},
+                {"type": "text", "text": "这张图里你看到了什么？用一句话描述。"},
+            ],
+        }],
+    }, "视觉")
+else:
+    print("[跳过] 没有 shots/01_baby.png，视觉测试略过（文本测试不受影响）")

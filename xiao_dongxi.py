@@ -40,8 +40,28 @@ except Exception:
     pass
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(BASE, "config.json"), encoding="utf-8") as _f:
+_cfg_path = os.path.join(BASE, "config.json")
+if not os.path.isfile(_cfg_path):
+    print("=" * 60)
+    print("  缺少 config.json —— 还没配置 API")
+    print("=" * 60)
+    print("  1. 把 config.example.json 复制一份，改名为 config.json")
+    print("  2. 打开它，把 api.api_key 换成你自己的 DeepSeek Key")
+    print("     （在 https://platform.deepseek.com 申请，其他字段不用动）")
+    print("  3. 保存后再启动本程序（或再双击 start.bat）")
+    print("=" * 60)
+    try:
+        input("按回车键退出…")
+    except Exception:
+        pass
+    raise SystemExit(0)
+with open(_cfg_path, encoding="utf-8") as _f:
     CFG = json.load(_f)
+
+_api_key = CFG.get("api", {}).get("api_key", "")
+if not _api_key or _api_key.startswith("sk-your"):
+    print("[提示] config.json 里的 api.api_key 还是占位符，对话会失败。")
+    print("       请把它换成你自己的 DeepSeek Key 再重启。")
 
 W = CFG["window"]["w"]
 H = CFG["window"]["h"]
