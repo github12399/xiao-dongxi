@@ -1,0 +1,22 @@
+# 密钥与本地配置（真 key 只留本地，模板见 config.example.json）
+config.json
+config.local.json
+
+# 运行时数据：对话记录、录屏、状态
+档案/
+录屏/
+
+# 渲染中间帧与质检图
+frames_ep1/
+frames_ep2/
+qa_ep2/
+
+# 成片视频（体积大，按需单独备份）
+*.mp4
+
+# 参考截图
+shots/
+
+# Python
+__pycache__/
+*.pyc

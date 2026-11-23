@@ -1,0 +1,13 @@
+{
+  "api": {
+    "base_url": "https://api.deepseek.com/anthropic/v1/messages",
+    "api_key": "sk-your-key-here",
+    "model": "DeepSeek-V4-Flash",
+    "max_tokens": 512,
+    "thinking": "disabled"
+  },
+  "birth": "2026-11-22",
+  "days_per_year": 5,
+  "window": { "w": 540, "h": 960, "x": 40, "y": 40 },
+  "record": { "enabled": true, "fps": 15, "dir": "录屏" }
+}
