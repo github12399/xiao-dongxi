@@ -296,8 +296,9 @@ class App:
                                 fill="#dfe8f5", font=("Microsoft YaHei", 18, "bold"))
         self.canvas.create_text(30, 62, anchor="w", text="DIGITAL CHILD · 活在电脑里",
                                 fill="#3f4c66", font=("Microsoft YaHei", 9))
-        self.canvas.create_text(W - 30, 62, anchor="e", text=f"第 {age*5+1} 天 · {age} 岁",
-                                fill="#5b6a86", font=("Microsoft YaHei", 10))
+        self.status_text = self.canvas.create_text(
+            W - 30, 62, anchor="e", text=f"第 {age*5+1} 天 · {age} 岁",
+            fill="#5b6a86", font=("Microsoft YaHei", 10))
         self.canvas.create_text(W - 28, 34, text="×", fill="#44506a",
                                 font=("Microsoft YaHei", 15), tags="closer")
         self.canvas.tag_bind("closer", "<Button-1>", lambda e: self.on_close())
@@ -366,15 +367,24 @@ class App:
         if self.selftest:
             return []                       # 自检不加载真实对话历史
         path = self.chat_path()
+        presets = {s for v in REPLY.values() for s in v}
         msgs = []
         if os.path.exists(path):
             with open(path, encoding="utf-8") as f:
                 for line in f:
                     try:
                         o = json.loads(line)
-                        msgs.append({"role": o["role"], "content": o["text"]})
                     except Exception:
-                        pass
+                        continue
+                    role, txt = o["role"], o["text"]
+                    # 旧档案里可能留着"离线兜底"的预设句（以及模型模仿它的变体），
+                    # 那不是它真说过的话，喂回去会让它复读，加载时直接跳过
+                    if role == "assistant" and (txt in presets or (len(txt) <= 8 and "在呢" in txt)):
+                        continue
+                    if msgs and msgs[-1]["role"] == role == "user":
+                        msgs[-1]["content"] += "\n" + txt
+                        continue
+                    msgs.append({"role": role, "content": txt})
         return msgs[-40:]
 
     def save_state(self):
@@ -439,25 +449,37 @@ class App:
     def _ask(self):
         try:
             reply = self.llm.chat(self.system, self.history)
+            ok = True
         except Exception as e:
             print("[API]", type(e).__name__, e)
+            print("[离线] 本次 API 失败，用预设回复：只上屏，不写档案、不进上下文")
             reply = random.choice(REPLY[self.t])
-        self._q.put(reply)   # 只入队，由主线程 _pump 取出来更新界面
+            ok = False
+        self._q.put((reply, ok))   # 只入队，由主线程 _pump 取出来更新界面
 
     def _pump(self):
         # 必须由主线程调用：从队列取后台回复，安全地更新界面（不跨线程碰 Tk）
         try:
             while True:
-                reply = self._q.get_nowait()
-                self.show_reply(reply)
+                reply, ok = self._q.get_nowait()
+                self.show_reply(reply, ok)
         except queue.Empty:
             pass
         self.root.after(80, self._pump)
 
-    def show_reply(self, reply):
-        self.history.append({"role": "assistant", "content": reply})
-        self.history = self.history[-40:]
-        self.log("assistant", reply)
+    def show_reply(self, reply, ok=True):
+        if ok:
+            self.history.append({"role": "assistant", "content": reply})
+            self.history = self.history[-40:]
+            self.log("assistant", reply)
+            self.canvas.itemconfigure(self.status_text, fill="#5b6a86",
+                                      text=f"第 {self.age*5+1} 天 · {self.age} 岁")
+        else:
+            # 离线预设回复只上屏：不写档案、不进上下文，否则模型会模仿自己的残句复读
+            if self.history and self.history[-1]["role"] == "user":
+                self.history.pop()
+            self.canvas.itemconfigure(self.status_text, fill="#a85a20",
+                                      text=f"第 {self.age*5+1} 天 · {self.age} 岁 · 离线")
         self._last_reply = reply
         self.type_line(reply)
         self.speak(reply)
