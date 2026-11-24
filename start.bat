@@ -4,6 +4,7 @@ cd /d "%~dp0"
 echo Starting Xiao-Dong-Xi ...
 
 rem Prefer the local Python 3.11 (has Pillow, stable tkinter)
+rem NOTE: this file MUST stay CRLF. Never rewrite it with LF tools.
 set "XDPY=C:\Users\25549\AppData\Local\Programs\Python\Python311\python.exe"
 if exist "%XDPY%" goto :run
 
@@ -24,7 +25,7 @@ pause
 goto :eof
 
 :run
-"%XDPY%" xiao_dongxi.py
+"%XDPY%" xiao_dongxi.py %*
 if not errorlevel 1 goto :eof
 echo.
 echo Program exited with an error. Check messages above.
