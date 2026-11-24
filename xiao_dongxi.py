@@ -17,7 +17,10 @@ import atexit
 import json
 import math
 import os
+import queue
 import random
+import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -168,6 +171,52 @@ class LLM:
         return "".join(texts).strip() or "……"
 
 
+def find_ffmpeg():
+    """找一个 Windows 能直接执行的 ffmpeg.exe。
+
+    坑：Git Bash 装的 C:\\Users\\xx\\bin\\ffmpeg 是**无扩展名的 shell 脚本**，
+    cmd 和 subprocess.Popen 都执行不了它（Popen 只认 .exe/.bat/.cmd），
+    所以必须解析出脚本里 exec 指向的真实 exe。
+    """
+    # 1) PATH 里真正的 ffmpeg.exe
+    exe = shutil.which("ffmpeg.exe")
+    if exe:
+        return exe
+    w = shutil.which("ffmpeg")
+    if w and w.lower().endswith(".exe"):
+        return w
+
+    # 2) imageio-ffmpeg 自带的二进制
+    try:
+        import imageio_ffmpeg  # type: ignore
+        p = imageio_ffmpeg.get_ffmpeg_exe()
+        if p and os.path.isfile(p):
+            return p
+    except Exception:
+        pass
+
+    # 3) 无扩展名 wrapper：读脚本里的 exec "..." 目标（/c/xxx -> C:\xxx）
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        p = os.path.join(d, "ffmpeg")
+        if not os.path.isfile(p) or p.lower().endswith(".exe"):
+            continue
+        try:
+            with open(p, "r", errors="ignore") as f:
+                txt = f.read(4000)
+        except Exception:
+            continue
+        m = re.search(r'exec\s+"([^"]+)"', txt)
+        if not m:
+            continue
+        target = m.group(1)
+        mm = re.match(r"^/([a-zA-Z])/(.*)$", target)
+        if mm:
+            target = mm.group(1).upper() + ":\\" + mm.group(2).replace("/", "\\")
+        if os.path.isfile(target):
+            return target
+    return None
+
+
 class Recorder:
     """用 ffmpeg gdigrab 录窗口区域，关闭时发 q 优雅结束"""
     def __init__(self, x, y, w, h, outdir):
@@ -175,11 +224,16 @@ class Recorder:
         self.proc = None
         if not CFG["record"].get("enabled", True):
             return
+        self.ffmpeg = find_ffmpeg()
+        if not self.ffmpeg:
+            print("[录屏] 没找到可执行的 ffmpeg.exe，本次不录屏（对话功能不受影响）")
+            print("       装法：pip install imageio-ffmpeg，或把 ffmpeg.exe 放进 PATH")
+            return
         os.makedirs(outdir, exist_ok=True)
         self.path = os.path.join(outdir, datetime.now().strftime("%H%M%S") + ".mp4")
         fps = CFG["record"].get("fps", 15)
         cmd = [
-            "ffmpeg", "-y", "-loglevel", "error",
+            self.ffmpeg, "-y", "-loglevel", "error",
             "-f", "gdigrab", "-framerate", str(fps),
             "-offset_x", str(x), "-offset_y", str(y),
             "-video_size", f"{w}x{h}",
@@ -224,6 +278,7 @@ class App:
         self._i = 0
         self._delay = 40 if selftest else 70
         self._last_reply = ""
+        self._q = queue.Queue()      # 后台线程只入队，界面更新一律在主线程做
         self.llm = LLM()
         self.system = system_prompt(age, self.t)
 
@@ -270,6 +325,7 @@ class App:
         self.draw_aura()
         self.type_line(DEMO[self.t])
         self.anim()
+        self.root.after(80, self._pump)   # 主线程轮询后台结果
 
         # 录屏：窗口先画出来，拿到真实屏幕坐标再开
         root.update_idletasks()
@@ -380,7 +436,17 @@ class App:
         except Exception as e:
             print("[API]", type(e).__name__, e)
             reply = random.choice(REPLY[self.t])
-        self.root.after(0, self.show_reply, reply)
+        self._q.put(reply)   # 只入队，由主线程 _pump 取出来更新界面
+
+    def _pump(self):
+        # 必须由主线程调用：从队列取后台回复，安全地更新界面（不跨线程碰 Tk）
+        try:
+            while True:
+                reply = self._q.get_nowait()
+                self.show_reply(reply)
+        except queue.Empty:
+            pass
+        self.root.after(80, self._pump)
 
     def show_reply(self, reply):
         self.history.append({"role": "assistant", "content": reply})

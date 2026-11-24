@@ -27,8 +27,11 @@
 | 要做什么 | 需要装 | 说明 |
 |---|---|---|
 | **只聊天**（主程序 `xiao_dongxi.py`） | Python 3.8+ | Windows 官方安装包自带 tkinter，不需要额外装包 |
-| **自动录屏** | [ffmpeg](https://www.gyan.dev/ffmpeg/builds/) 放进 PATH | 没装也能运行，只是不录屏（程序会打印「录屏启动失败」然后继续） |
+| **自动录屏** | ffmpeg | 最省事的是 `pip install imageio-ffmpeg`——程序会自动用包里的 ffmpeg，不用配 PATH。没装也能跑，只是不录屏（程序会打印提示后继续） |
 | **渲染成片**（`make_ep1.py` / `make_ep2.py`） | `pip install pillow` | 逐帧画字幕用 |
+
+> **Windows 启动说明**：双击 `start.bat` 会依次尝试「本机 Python 3.11 → `py` 启动器 → PATH 里的 `python.exe`」，全找不到才提示安装。
+> 如果你用 Git Bash 装过 ffmpeg，`PATH` 里那个 `ffmpeg` 通常是个**没有扩展名的 shell 脚本**，cmd 和 Python 都执行不了它——程序会自动读出脚本里指向的真实 exe，所以不用手动处理。
 
 ### 2. 填自己的 Key（这一步必做）
 
