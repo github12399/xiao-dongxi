@@ -277,6 +277,7 @@ class App:
         self.phase = 0.3
         self._i = 0
         self._delay = 40 if selftest else 70
+        self.selftest = selftest
         self._last_reply = ""
         self._q = queue.Queue()      # 后台线程只入队，界面更新一律在主线程做
         self.llm = LLM()
@@ -350,7 +351,10 @@ class App:
     def chat_path(self):
         d = os.path.join(BASE, "档案", "chat")
         os.makedirs(d, exist_ok=True)
-        return os.path.join(d, datetime.now().strftime("%Y-%m-%d") + ".jsonl")
+        name = datetime.now().strftime("%Y-%m-%d")
+        if self.selftest:
+            name = "_selftest_" + name      # 自检不污染真实档案
+        return os.path.join(d, name + ".jsonl")
 
     def log(self, role, text):
         with open(self.chat_path(), "a", encoding="utf-8") as f:
@@ -359,6 +363,8 @@ class App:
                                ensure_ascii=False) + "\n")
 
     def load_today(self):
+        if self.selftest:
+            return []                       # 自检不加载真实对话历史
         path = self.chat_path()
         msgs = []
         if os.path.exists(path):
